@@ -15,18 +15,6 @@ var STUN_URL = 'stun:stun.couch-games.com:3478';
 var AUTO_PLAYER_NAME_PREFIX = '';
 var AUTO_PLAYER_NAME_RE = /^([1-9][0-9]?)$/;
 
-// ---- Wire contract (JSDoc types, consumed by `npm run typecheck`) ----
-// Auto-run heading; a swipe sets one of these (see INPUT below).
-/** @typedef {'up'|'down'|'left'|'right'} Heading */
-// Display-side room lifecycle state (see ROOM_STATE below).
-/** @typedef {'lobby'|'countdown'|'playing'|'results'} RoomState */
-/**
- * A game message carried inside the Party-Server relay `data` field.
- * `type` is one of the MSG.* constants; the remaining fields are
- * type-specific (e.g. INPUT carries a heading, SET_COLOR a colorIndex).
- * @typedef {{ type: string } & Record<string, any>} GameMessage
- */
-
 // Message types for game communication (inside Party-Server data field)
 var MSG = {
   // Controller -> Display

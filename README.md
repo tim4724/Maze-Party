@@ -84,14 +84,9 @@ The display and controllers connect to a [Party-Sockets](https://github.com/tim4
 ```bash
 # Unit tests
 npm test
-
-# Type-check (no build step — checkJs over the JS sources)
-npm run typecheck
 ```
 
 Unit tests use Node.js's built-in `node:test` runner with `node:assert/strict` — no test framework dependency. They cover maze generation (`tests/maze-gen.test.js`), the maze simulation engine (`tests/maze-engine.test.js`), and the PartyPlug transport framework (`partyplug/tests/`).
-
-Type-checking uses TypeScript's `checkJs` over the plain JS sources (no transpile/emit — the code ships as-is). `tsconfig.json` scopes it to the isomorphic engine, the server, and the wire protocol; shared/global seams are declared in `types/`.
 
 ## Tech Stack
 

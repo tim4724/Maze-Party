@@ -17,9 +17,7 @@
 //  - One-way tiles: passable only along their arrow direction.
 // =====================================================================
 
-// `exports` is the UMD export bag: module.exports in Node, window.GameEngine
-// in the browser. Typed `any` so checkJs accepts the browser-global half.
-(/** @param {any} exports */ function (exports) {
+(function (exports) {
 
   var MazeGen = (typeof module !== 'undefined' && module.exports)
     ? require('./maze-gen') : window.MazeGen;
