@@ -1,0 +1,21 @@
+{
+  "name": "maze-party",
+  "version": "0.1.0",
+  "description": "Fog-of-war maze race party game: shared screen + phone controllers",
+  "author": "Tim",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tim4724/Maze-Party.git"
+  },
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test tests/*.test.js partyplug/tests/*.test.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

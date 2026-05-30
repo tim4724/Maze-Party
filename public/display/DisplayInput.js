@@ -1,0 +1,256 @@
+'use strict';
+
+// =====================================================================
+// Display Input — controller message handling and input validation
+// Depends on: DisplayState.js, DisplayUI.js, DisplayConnection.js, DisplayGame.js
+// =====================================================================
+
+// Input validation: only accept known game actions (derived from protocol.js INPUT)
+var VALID_ACTIONS = new Set(Object.values(INPUT));
+
+// Per-player hard_drop rate limit — prevents queued messages from firing multiple drops
+var HARD_DROP_MIN_INTERVAL_MS = 150;
+var lastHardDropTime = new Map();
+
+function handleControllerMessage(fromId, msg) {
+  try {
+    if (!msg || !msg.type) return;
+
+    // Any message from a controller proves it's alive
+    var wasDisconnected = disconnectedQRs.has(fromId);
+    disconnectedQRs.delete(fromId);
+    if (wasDisconnected) flow.markReconnected(fromId);
+    var senderPlayer = players.get(fromId);
+    if (senderPlayer) senderPlayer.lastPingTime = Date.now();
+
+    switch (msg.type) {
+      case MSG.HELLO:
+        onHello(fromId, msg);
+        break;
+      case MSG.INPUT:
+        onInput(fromId, msg);
+        break;
+      case MSG.DROP_WALL:
+        onDropWall(fromId);
+        break;
+      case MSG.START_GAME:
+        startGame();
+        break;
+      case MSG.PLAY_AGAIN:
+        playAgain();
+        break;
+      case MSG.RETURN_TO_LOBBY:
+        returnToLobby();
+        break;
+      case MSG.PAUSE_GAME:
+        pauseGame();
+        break;
+      case MSG.RESUME_GAME:
+        resumeGame();
+        break;
+      case MSG.SET_COLOR:
+        onSetColor(fromId, msg);
+        break;
+      case MSG.LEAVE:
+        onPeerLeft(fromId);
+        break;
+      case MSG.PING:
+        // PING/PONG measures relay-mediated RTT (WS). Input-path RTT is
+        // measured separately via fastlane acks (PartyFastlane onRtt).
+        party.sendTo(fromId, { type: MSG.PONG, t: msg.t });
+        break;
+    }
+
+    // Auto-resume after processing the message (e.g. after onHello sends
+    // WELCOME with paused state) so the controller gets proper state sync
+    // before the GAME_RESUMED broadcast.
+    if (wasDisconnected && playerOrder.indexOf(fromId) >= 0) {
+      clearLateJoinerGraceTimer();
+      if (autoPaused) checkAutoResume();
+    }
+  } catch (err) {
+    console.error('[input] Error handling message from', fromId, ':', err);
+  }
+}
+
+function onHello(fromId, msg) {
+  // Strip control characters (incl. \x00) — defensive against names that would
+  // render weirdly in textContent or confuse downstream serialization.
+  // ControllerGame.js#renderHostBanner uses \x00 as a template-split sentinel;
+  // a \x00 in a player name would survive to the controller and reach that
+  // split. Stripping here is the single chokepoint — all inbound names pass
+  // through onHello.
+  var name = typeof msg.name === 'string'
+    ? msg.name.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 16)
+    : '';
+  var claimedReconnect = claimReconnectPeer(fromId, msg);
+
+  // Player already registered (from peer_joined or reconnect)
+  if (players.has(fromId)) {
+    var existing = players.get(fromId);
+
+    // Update name. Empty submissions and legacy P1-P8 fallbacks resolve to
+    // room-unique HX names; custom names stay as entered.
+    if (name || (msg.autoName === true && !claimedReconnect)) {
+      // For the peer_joined-before-HELLO path, preserve the HX name already
+      // assigned on the player's Map entry while excluding that entry from
+      // collision checks.
+      var requestedName = name || existing.playerName;
+      existing.playerName = sanitizePlayerName(requestedName, fromId, msg.autoName === true);
+    }
+    updatePlayerList();
+
+    // Late joiner: registered via onPeerJoined during active game but never
+    // participated. Omit alive/paused so controller shows waiting screen.
+    var isLateJoiner = (roomState === ROOM_STATE.PLAYING || roomState === ROOM_STATE.COUNTDOWN)
+      && playerOrder.indexOf(fromId) < 0;
+
+    // Send welcome with current state
+    var hostId = getHostPeerIndex();
+    var hostPlayer = hostId != null ? players.get(hostId) : null;
+    var welcomeMsg = {
+      type: MSG.WELCOME,
+      playerName: existing.playerName,
+      colorIndex: existing.playerIndex,
+      playerCount: players.size,
+      roomState: roomState,
+      isHost: fromId === hostId,
+      hostName: hostPlayer ? hostPlayer.playerName : null,
+      hostColorIndex: hostPlayer ? hostPlayer.playerIndex : null,
+      takenColorIndices: collectTakenColorIndices()
+    };
+    if (!isLateJoiner) {
+      welcomeMsg.alive = lastAliveState[fromId] != null ? lastAliveState[fromId] : true;
+      welcomeMsg.paused = paused;
+    }
+    if (roomState === ROOM_STATE.RESULTS && lastResults) {
+      welcomeMsg.results = lastResults.results;
+    }
+    party.sendTo(fromId, welcomeMsg);
+
+    // Refresh host info on the other controllers too.
+    //
+    // - Standard mode: a reconnecting ex-host reclaims their role.
+    //   onPeerLeft kept hostPeerIndex pinned through the disconnect, and
+    //   claimReconnectPeer rekeyed it from the old peerIndex to the new
+    //   one. The temp host (oldest-joined present player who was acting
+    //   via getHostPeerIndex's read-only fallback) cedes back, so the
+    //   broadcast flips their Return-to-lobby button off and the original
+    //   host's on.
+    // - AirConsole mode: getMasterPeerIndex() takes priority in
+    //   getHostPeerIndex, so the platform CAN re-elect the reconnecting
+    //   player as master if they were the AC master before. The dedup
+    //   sentinel inside maybeBroadcastHostChange suppresses the broadcast
+    //   when nothing actually changed.
+    maybeBroadcastHostChange();
+    if (claimedReconnect) {
+      broadcastLobbyUpdate();
+      if (autoPaused) checkAutoResume();
+    }
+    return;
+  }
+
+  // New player joining
+  var index = nextAvailableSlot();
+  if (index < 0) {
+    party.sendTo(fromId, { type: MSG.ERROR, message: 'Room is full' });
+    return;
+  }
+  var playerName = sanitizePlayerName(name, fromId, msg.autoName === true);
+
+  // flow.addPlayer assigns joinedAt + connected and makes the first joiner the
+  // sticky host. This branch only runs if HELLO beats the relay's peer_joined
+  // event; normally onPeerJoined gets here first and onHello takes the
+  // reconnect path (flow.addPlayer merges fields on the existing record).
+  flow.addPlayer(fromId, {
+    playerName: playerName,
+    playerIndex: index,
+    lastPingTime: Date.now()
+  });
+  if (roomState === ROOM_STATE.LOBBY) {
+    playerOrder.push(fromId);
+  }
+
+  var hostId = getHostPeerIndex();
+  var hostPlayer = hostId != null ? players.get(hostId) : null;
+  var welcomeMsg = {
+    type: MSG.WELCOME,
+    playerName: playerName,
+    colorIndex: index,
+    playerCount: players.size,
+    roomState: roomState,
+    isHost: fromId === hostId,
+    hostName: hostPlayer ? hostPlayer.playerName : null,
+    hostColorIndex: hostPlayer ? hostPlayer.playerIndex : null,
+    takenColorIndices: collectTakenColorIndices()
+  };
+  if (roomState === ROOM_STATE.RESULTS && lastResults) {
+    welcomeMsg.results = lastResults.results;
+  }
+  party.sendTo(fromId, welcomeMsg);
+
+  if (roomState === ROOM_STATE.LOBBY) {
+    broadcastLobbyUpdate();
+    updatePlayerList();
+    updateStartButton();
+  } else if (roomState === ROOM_STATE.RESULTS) {
+    // A new low-slot player can become host — notify existing controllers so
+    // their "Waiting for {name}" banners and Play Again buttons stay accurate.
+    broadcastLobbyUpdate();
+  }
+}
+
+function onInput(fromId, msg) {
+  if (roomState !== ROOM_STATE.PLAYING || paused) return;
+  if (!displayGame) return;
+  if (!VALID_ACTIONS.has(msg.action)) return;
+
+  // Rate-limit hard drops to prevent queued messages from rapid-firing after reconnect
+  if (msg.action === INPUT.HARD_DROP) {
+    var now = Date.now();
+    var last = lastHardDropTime.get(fromId) || 0;
+    if (now - last < HARD_DROP_MIN_INTERVAL_MS) return;
+    lastHardDropTime.set(fromId, now);
+  }
+
+  displayGame.processInput(fromId, msg.action);
+}
+
+function onDropWall(fromId) {
+  if (roomState !== ROOM_STATE.PLAYING || paused) return;
+  if (!displayGame || typeof displayGame.dropWall !== 'function') return;
+  displayGame.dropWall(fromId);
+}
+
+// Re-claim a palette slot. Active game participants (in playerOrder during
+// COUNTDOWN/PLAYING/RESULTS) are locked — color is baked into the running
+// game. Late joiners sitting in waitingForNextGame can still pre-pick.
+// Silently rejects collisions so concurrent picks don't spam the sender with
+// errors; the next LOBBY_UPDATE carries the truth.
+function onSetColor(fromId, msg) {
+  if (!players.has(fromId)) return;
+  var idx = parseInt(msg.colorIndex, 10);
+  if (isNaN(idx) || idx < 0 || idx >= PLAYER_COLORS.length) return;
+
+  var isActiveParticipant = playerOrder.indexOf(fromId) >= 0 && roomState !== ROOM_STATE.LOBBY;
+  if (isActiveParticipant) return;
+
+  var player = players.get(fromId);
+  if (player.playerIndex === idx) return;
+
+  for (const entry of players) {
+    if (entry[0] !== fromId && entry[1].playerIndex === idx) return;
+  }
+
+  player.playerIndex = idx;
+  updatePlayerList();
+  broadcastLobbyUpdate();
+}
+
+function cleanupPlayerInput(clientId) {
+  lastHardDropTime.delete(clientId);
+}
+
+function resetAllPlayerInput() {
+  lastHardDropTime.clear();
+}

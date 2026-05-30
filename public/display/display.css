@@ -1,0 +1,736 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.screen.hidden {
+  display: none;
+}
+
+/* ============================================
+   Welcome Screen
+   ============================================ */
+#welcome-screen {
+  gap: clamp(2rem, 5vh, 4rem);
+  padding-bottom: clamp(2.7rem, 6vh, 4rem);
+  position: relative;
+}
+
+#welcome-version-label,
+#lobby-version-label {
+  position: absolute;
+  top: clamp(1rem, 2.5vh, 1.5rem);
+  right: clamp(1rem, 2vw, 2rem);
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(11px, 1.3vw, 14px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  opacity: 0.55;
+  text-transform: uppercase;
+  animation: fadeIn 0.6s 0.3s ease-out both;
+}
+
+#lobby-version-label { display: none; }
+
+#welcome-screen h1 {
+  font-size: clamp(2.5rem, 7vh, 6rem);
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: fadeDown 0.6s ease-out both;
+  text-align: center;
+}
+
+#welcome-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.9rem, 2vh, 1.4rem);
+  animation: fadeUp 0.6s 0.3s ease-out backwards;
+}
+
+#welcome-footer {
+  position: absolute;
+  bottom: clamp(1.2rem, 3vh, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: fadeUp 0.6s 0.6s ease-out both;
+}
+
+.footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.footer-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Shared footer text shape — welcome/lobby links + version label. */
+#welcome-footer a,
+#lobby-footer a,
+#version-label {
+  color: var(--text-secondary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: clamp(13px, 1.5vw, 16px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  transition: color var(--transition-normal), filter var(--transition-normal);
+}
+
+#welcome-footer a:hover,
+#lobby-footer a:hover,
+#welcome-footer a:active,
+#lobby-footer a:active {
+  color: var(--text-primary);
+}
+
+.footer-dot {
+  color: var(--text-secondary);
+  opacity: 0.4;
+}
+
+#version-label {
+  opacity: 0.6;
+}
+
+#lobby-footer {
+  position: absolute;
+  bottom: clamp(1.2rem, 3vh, 2.5rem);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Relay status bar — pinned to the viewport's bottom-right (conventional
+   status-indicator corner). Lives outside any single screen so it persists
+   across lobby → game → results, giving the host a steady relay-quality
+   signal during play. Hidden on welcome via the html.in-session toggle.
+   The chip reveals only after the relay's `created` message lands, then
+   stays visible across reconnects. Stacked column with chip on top and the
+   report button (when revealed) directly below, both centered. */
+#relay-status-bar {
+  position: fixed;
+  bottom: max(env(safe-area-inset-bottom), 16px);
+  right: max(env(safe-area-inset-right), 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  z-index: 25;
+}
+html:not(.in-session) #relay-status-bar { display: none; }
+
+.relay-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-family: 'Orbitron', system-ui, -apple-system, sans-serif;
+  font-size: clamp(11px, 1.3vw, 13px);
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  cursor: help;
+}
+.relay-chip.hidden { display: none; }
+
+/* Custom tooltip — surfaces RTT detail on hover. Native title= is too slow
+   (1s+ delay), unstyled, and invisible on touch; this CSS-only popover
+   appears instantly and matches the lobby aesthetic. Hidden on touch
+   devices where hover doesn't exist. */
+.relay-chip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--text-primary);
+  font-family: 'Orbitron', system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease-out;
+}
+@media (hover: hover) {
+  .relay-chip[data-tooltip]:hover::after { opacity: 1; }
+}
+
+.relay-chip__region {
+  font-weight: 600;
+}
+
+.relay-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ping-good);
+  box-shadow: 0 0 6px currentColor;
+  color: var(--ping-good);
+  transition: background var(--transition-normal), color var(--transition-normal);
+}
+.relay-chip__dot.ping-ok  { background: var(--ping-ok);  color: var(--ping-ok); }
+.relay-chip__dot.ping-bad { background: var(--ping-bad); color: var(--ping-bad); }
+
+.relay-report-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: clamp(11px, 1.3vw, 13px);
+  letter-spacing: 0.06em;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: color var(--transition-normal), border-color var(--transition-normal);
+}
+.relay-report-btn:hover,
+.relay-report-btn:focus-visible {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.relay-report-btn.hidden { display: none; }
+
+
+/* ============================================
+   Lobby Screen — single fluid layout.
+   Every size uses clamp() with `vmin` (the smaller of viewport width or
+   height), so the layout reads the same on a phone, a tablet, or a 4K
+   display — only proportionally larger or smaller. The only conditional
+   rule is orientation: portrait stacks (QR above cards), landscape splits
+   (QR beside cards).
+   ============================================ */
+
+/* `space-around` puts a half-gap above the title and below the button and
+   a full gap between every pair of elements — gives breathing room at
+   the edges while keeping the title near the top and button near the
+   bottom, instead of the harsh "stuck to the edges" look space-between
+   produces on tall viewports. */
+#lobby-screen {
+  justify-content: space-evenly;
+  padding: clamp(1rem, 3vmin, 2rem) clamp(1rem, 3vmin, 2rem);
+  position: relative;
+  overflow: hidden;
+}
+
+#lobby-screen h1 {
+  position: relative;
+  z-index: 5;
+  font-size: clamp(1.6rem, 7vmin, 5rem);
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.4));
+  animation: fadeDown 0.6s ease-out both;
+  text-align: center;
+}
+
+#lobby-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 3vmin, 2.5rem);
+  width: 100%;
+  max-width: 1400px;
+  /* Shrink-to-fit so #lobby-screen's space-evenly distribution keeps the
+     four bands (title, body, START, edges) evenly spaced even when the
+     QR + cards content would otherwise claim its full intrinsic height
+     and squeeze the gaps. min-height: 0 lets nested overflow clip behind
+     the z-indexed START rather than expanding the body box. */
+  flex: 0 1 auto;
+  min-height: 0;
+  animation: fadeUp 0.6s 0.15s ease-out both;
+}
+
+#qr-container {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(6px, 1vmin, 12px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: clamp(8px, 1.5vmin, 18px);
+  width: clamp(160px, 32vmin, 320px);
+  max-width: 90vw;
+  overflow: hidden;
+}
+
+#qr-code {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  padding: clamp(4px, 0.8vmin, 10px);
+  display: block;
+}
+
+#qr-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.8vmin, 8px);
+  text-align: center;
+}
+
+#qr-label {
+  margin: 0;
+  font-size: clamp(9px, 1.2vmin, 11px);
+  color: var(--text-faint);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Join URL — host on top line, code below. Click to copy the full URL;
+   shows a brief toast via #join-url[data-copied]. */
+#join-url {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+  gap: 0;
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  line-height: 1.2;
+  max-width: 100%;
+  padding: clamp(4px, 1vmin, 8px) clamp(8px, 1.5vmin, 14px);
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast);
+  user-select: none;
+}
+
+#join-url:hover {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+#join-url:active {
+  background: rgba(0, 0, 0, 0.38);
+}
+
+#join-url::after {
+  content: attr(data-copied-label);
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 4px 10px;
+  background: var(--accent-secondary);
+  color: var(--bg-primary);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+#join-url[data-copied="1"]::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.join-url__host {
+  font-size: clamp(0.85rem, 1.8vmin, 1.2rem);
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.join-url__code {
+  font-size: clamp(1.1rem, 2.2vmin, 1.5rem);
+  font-weight: 900;
+  color: var(--accent-secondary);
+  letter-spacing: 0.18em;
+}
+
+/* Player cards: 2-column grid by default; landscape with 5+ players gets
+   4 columns (rule below). `width: max-content` is essential — without it,
+   the grid stretches to fill the flex row and leaves a wide trough
+   between the QR and the cards. `minmax(0, ...)` lets columns shrink
+   below their clamp value when QR + cards together exceed the available
+   row (e.g. 4 cards next to a tall QR on a 1024×768 landscape display). */
+#player-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, clamp(150px, 24vmin, 280px)));
+  gap: clamp(8px, 1.5vmin, 18px);
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  animation: fadeIn 0.4s 0.3s ease-out both;
+}
+
+.player-card {
+  /* Layout (flex column, 2:1 aspect, 50/50 halves) lives in theme.css.
+     Display-only: scale-down hint for nested elements + min-width: 0 so
+     the card can shrink inside the grid's min-content track. */
+  font-size: clamp(0.85rem, 1.8vmin, 1.4rem);
+  min-width: 0;
+}
+
+/* --- Landscape: split QR | cards horizontally; with 5+ players use 4
+   columns so the grid stays wide-and-short next to the QR. --- */
+@media (orientation: landscape) {
+  #lobby-body { flex-direction: row; }
+  #player-list.pl--lg {
+    grid-template-columns: repeat(4, minmax(0, clamp(150px, 24vmin, 280px)));
+  }
+}
+
+/* --- no-QR override: hide QR; player list sizing is class-driven --- */
+#lobby-screen.no-qr #qr-container {
+  display: none;
+}
+
+.player-card.empty {
+  background: transparent;
+  border: 2px dashed var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+/* Display-specific name color — uses --text-secondary as the fallback
+   (display empty slots want a muted name) instead of the controller's
+   --text-primary. Layout/typography for .identity-name lives in theme.css. */
+.player-card .identity-name {
+  color: var(--player-color, var(--text-secondary));
+}
+
+@keyframes slotPopIn {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.08); opacity: 1; }
+  80%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+.player-card.join-pop {
+  animation: slotPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.player-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Override grid item default min-width:auto so the slot can shrink
+     on tight viewports. */
+  min-width: 0;
+}
+
+/* Shared sizing for welcome + lobby primary CTAs. */
+#new-game-btn,
+#start-btn {
+  padding: clamp(0.7rem, 1.4vh, 1.3rem) clamp(2rem, 4vw, 6rem);
+  font-size: clamp(1rem, 2vh, 1.6rem);
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+#start-btn {
+  position: relative;
+  z-index: 5;
+  animation: fadeUp 0.5s 0.45s ease-out backwards;
+}
+
+#start-btn:disabled {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  /* Override .btn-primary:disabled's opacity 0.5 — the grey bg + muted text
+     already convey "disabled", and the opacity snap from 1 → 0.5 at the
+     end of the fadeUp animation reads as a glitch. */
+  opacity: 1;
+}
+
+/* ============================================
+   Game Screen
+   ============================================ */
+#game-screen {
+  position: relative;
+  padding: 0;
+  background: var(--bg-primary);
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(6rem, 15vh, 14rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  /* Palette-gradient text with soft drop-shadow — no neon-blue glow stack. */
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(var(--accent-primary-rgb), 0.08) 0%, transparent 60%),
+    rgba(var(--bg-primary-rgb), 0.85);
+  color: var(--accent-primary);
+  z-index: 10;
+}
+
+/* Only the number pulses; the overlay stays static so the ::before noise
+   tile below doesn't shimmer with the scale transform. */
+#countdown-number {
+  display: inline-block;
+  animation: countdownBeat 1s ease-out infinite;
+}
+
+#countdown-overlay.paused #countdown-number {
+  animation-play-state: paused;
+}
+
+/* SVG-noise overlay to dither the radial gradient below. CSS gradients at
+   very low alpha band visibly on 8-bit displays; adding a tiled grayscale
+   noise pattern on top breaks the bands perceptually. Pointer-transparent
+   and cached by the browser. */
+#countdown-overlay::before,
+#results-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%27180%27 height=%27180%27><filter id=%27n%27><feTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%272%27 stitchTiles=%27stitch%27/></filter><rect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27/></svg>");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+
+@keyframes countdownBeat {
+  0%   { transform: scale(1); }
+  20%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+#countdown-overlay.hidden {
+  display: none;
+}
+
+/* ============================================
+   Game Toolbar (fullscreen + pause)
+   ============================================ */
+#game-toolbar {
+  position: absolute;
+  top: clamp(10px, 1.5vh, 20px);
+  right: clamp(10px, 1.5vw, 20px);
+  z-index: 50;
+  display: flex;
+  gap: clamp(6px, 0.8vh, 10px);
+  transition: opacity var(--transition-normal);
+}
+
+#game-toolbar.toolbar-autohide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#game-toolbar.hidden {
+  display: none;
+}
+
+#game-toolbar .icon-btn {
+  width: clamp(36px, 4vh, 52px);
+  height: clamp(36px, 4vh, 52px);
+}
+
+#game-toolbar .hidden {
+  display: none;
+}
+
+#pause-btn .pause-icon::before,
+#pause-btn .pause-icon::after {
+  width: clamp(3px, 0.4vh, 5px);
+  height: clamp(12px, 1.6vh, 18px);
+  border-radius: 1px;
+}
+
+#pause-btn:hover:not(:disabled) .pause-icon::before,
+#pause-btn:hover:not(:disabled) .pause-icon::after {
+  background: #fff;
+}
+
+#pause-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#pause-btn:disabled:hover {
+  transform: none;
+}
+
+#pause-overlay h1 {
+  font-size: clamp(1.6rem, 4vh, 3.5rem);
+  margin-bottom: clamp(1.5rem, 3vh, 3rem);
+}
+
+/* No misclick gate on the display — it's a TV/monitor, not a phone. */
+#pause-buttons {
+  display: flex;
+  gap: clamp(0.8rem, 1.5vw, 1.5rem);
+}
+
+/* Overlay action buttons — pause/reconnect/results share one sizing scale. */
+#pause-continue-btn,
+#pause-newgame-btn,
+#reconnect-btn,
+#play-again-btn,
+#new-game-results-btn {
+  min-width: clamp(180px, 22vh, 280px);
+  padding: clamp(0.6rem, 1.2vh, 1.2rem) clamp(1rem, 2vw, 2rem);
+  font-size: clamp(0.85rem, 1.6vh, 1.2rem);
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+#reconnect-btn.hidden {
+  display: none;
+}
+
+/* ============================================
+   Cursor Auto-Hide
+   ============================================ */
+.cursor-hidden,
+.cursor-hidden * {
+  cursor: none !important;
+}
+
+/* ============================================
+   Results Overlay
+   ============================================ */
+#results-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: radial-gradient(ellipse at 50% 30%, var(--winner-glow, rgba(255, 215, 0, 0.06)) 0%, transparent 60%),
+              var(--overlay-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn 0.5s ease both;
+}
+
+#results-screen h1 {
+  font-size: clamp(1.6rem, 4vh, 3.5rem);
+  letter-spacing: 0.15em;
+  margin-bottom: clamp(1rem, 3vh, 3rem);
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+#results-list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 0.8vh, 0.8rem);
+  width: 90%;
+  max-width: 700px;
+}
+
+.result-row {
+  gap: 1rem;
+  padding: clamp(0.6rem, 1.2vh, 1.2rem) clamp(1rem, 2vw, 2rem) clamp(0.6rem, 1.2vh, 1.2rem) clamp(0.5rem, 1vw, 1rem);
+}
+
+.result-rank {
+  font-size: clamp(1.2rem, 2.5vh, 2.2rem);
+}
+
+.result-info {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.result-name {
+  font-size: clamp(1.2rem, 2.5vh, 2.2rem);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.result-stats {
+  display: flex;
+  gap: 1.5rem;
+  font-size: clamp(1rem, 2.2vh, 1.8rem);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-stats span {
+  white-space: nowrap;
+  text-align: right;
+}
+
+#results-buttons {
+  display: flex;
+  gap: clamp(0.8rem, 1.5vw, 1.5rem);
+  margin-top: clamp(1.5rem, 3vh, 3rem);
+  pointer-events: none;
+  animation: resultsButtonsEnter 0.4s ease 1.5s both;
+}
+
+/* Skip the 1.5s anti-misclick gate when returning to a tab that was
+   already on the results screen. */
+#results-screen.results-screen--ready #results-buttons {
+  animation: none;
+  pointer-events: auto;
+}
+

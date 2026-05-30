@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+# Local-only Claude Code state — keeps the .claude/ root committable for
+# shared project settings/hooks while excluding per-user runtime files.
+.claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.playwright-mcp/
+.codex-run/
+output/
+test-results/
+progress.md
+build/
+.dev-certs/

@@ -1,0 +1,78 @@
+/* ==========================================================
+   Results Overlay — shared between display and controller
+   ========================================================== */
+
+/* --- Keyframes --- */
+
+@keyframes resultRowIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Anti-misclick gate for the results action row. pointer-events is a discrete
+   property, so it flips at the end of the animation delay — clicks are blocked
+   until the buttons have visibly appeared. */
+@keyframes resultsButtonsEnter {
+  from { opacity: 0; pointer-events: none; }
+  to { opacity: 1; pointer-events: auto; }
+}
+
+/* If the user prefers reduced motion (OS setting, user stylesheet, some
+   browser extensions), the animation may be stripped and the base
+   `pointer-events: none` on the wrapper would strand the buttons
+   unclickable forever. Force the gate open in that case — the anti-misclick
+   concern is about fast accidental taps after the round ends, which matters
+   less when the user has already opted out of motion. */
+@media (prefers-reduced-motion: reduce) {
+  #gameover-buttons,
+  #pause-buttons,
+  #results-buttons {
+    animation: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* --- Result rows — neutral card treatment; rank color is set via inline
+   style from the player's palette in JS (no medal podium). --- */
+
+.result-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  animation: resultRowIn 0.4s ease-out both;
+  animation-delay: var(--row-delay, 0.2s);
+}
+
+/* Non-participant who sat out this round (late joiner), not ranked. Muted
+   card + dashed border so it reads as "you'll be in the next one" rather than
+   a player who placed last. Overrides only the border style set above; on the
+   controller the is-me outline still applies on top. */
+.result-row--joining {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+/* --- Rank ordinal — color set via inline style from JS; fallback keeps it
+   readable when no player color is available. --- */
+
+.result-rank {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  /* Fixed digit geometry so "1" and "5" align the trailing name column
+     identically — Orbitron is proportional by default. */
+  font-variant-numeric: tabular-nums;
+  min-width: 1ch;
+  text-align: center;
+}
+
+/* --- Name --- */
+
+.result-name {
+  font-family: 'Orbitron', sans-serif;
+}

@@ -1,0 +1,228 @@
+'use strict';
+
+// =====================================================================
+// Controller State — shared globals across all controller script files.
+// All four files execute in global scope (no IIFE), matching the display
+// pattern. Variables declared here are accessible to the other files.
+//
+// LOAD ORDER (required): ControllerState → ControllerConnection →
+//   ControllerGame → controller.js
+// See controller/index.html <script> tags for the canonical order.
+// =====================================================================
+
+// Silence haptics in ?test=1 mode so automated smoke loads don't buzz the
+// phone. navigator.vibrate may be non-writable in some strict-mode contexts
+// — swallow the assignment error so the page still boots if we can't silence it.
+if (new URLSearchParams(location.search).get('test') === '1' && navigator.vibrate) {
+  try { navigator.vibrate = function() { return false; }; } catch (_) { /* best effort */ }
+}
+
+// --- State ---
+var party = null;
+// Optional P2P DataChannel layer to the display (slot 0) for input messages.
+// Stays null in AirConsole mode (no WebRTC there) and during ?scenario= gallery
+// previews. See ControllerConnection.js for setup; sendToDisplay routes
+// MSG.INPUT over fastlane when open and falls back to WS.
+var fastlane = null;
+var clientId = null;
+var peerIndex = null;          // relay/AirConsole slot id; display-facing playerId
+var playerColor = null;       // hex, resolved locally from colorIndex
+var playerColorIndex = null;  // 0..7 index into PLAYER_COLORS
+var playerName = null;
+var playerNameIsAuto = false;
+var roomCode = null;
+var touchInput = null;
+var currentScreen = 'name';
+var playerCount = 0;
+var gameCancelled = false;
+var waitingForNextGame = false;
+var lastGameResults = null;
+var takenColorIndices = [];   // indices currently claimed by other players (incl. self)
+// Becomes true the first time the user taps a swatch in the picker. Gates
+// persistColorIndex in onLobbyUpdate so we only persist *user-initiated*
+// color changes — display-assigned slots (initial / reconnect default)
+// must NOT clobber the previous-session preference, which reclaim still
+// needs to read from the AC server snapshot.
+var userPickedColor = false;
+
+// Host (AirConsole master controller) — lowest-slot connected player.
+// Only the host can trigger menu actions (start, play again, return to lobby).
+var isHost = false;
+var hostName = null;
+var hostColor = null;
+
+// Ping/pong
+var PING_INTERVAL_MS = 1000;
+var PONG_TIMEOUT_MS = 3000;
+var pingTimer = null;
+var lastPongTime = 0;
+var disconnectedTimer = null;
+
+// Gesture feedback state
+var lastTouchX = 0, lastTouchY = 0;
+var coordTracker = null;
+var glowEl = null;
+
+// QR rejoin claim. This is display-app data, distinct from the relay
+// clientId stored in localStorage.
+var rejoinToken = new URLSearchParams(location.search).get('claim');
+// Backward-compatible only: older QR codes used ?rejoin=<peerIndex>.
+var legacyRejoinId = new URLSearchParams(location.search).get('rejoin');
+// Relay instance shard — set on the join URL/QR by the display (URL fragment,
+// e.g. https://host/A3KX#00bb33ff) so this controller's WebSocket lands on
+// the same shard that owns the room. Fragment keeps it out of HTTP requests.
+var instanceId = (function() {
+  var raw = (location.hash || '').slice(1);
+  if (!raw) return null;
+  try { return decodeURIComponent(raw); } catch (_) { return raw; }
+})();
+
+var PLAYER_NAME_STORAGE_KEY = 'maze_player_name';
+var AUTO_PLAYER_NAME_STORAGE_KEY = 'maze_auto_player_name';
+// AUTO_PLAYER_NAME_RE is the shared auto-name contract from protocol.js.
+
+function getStoredTypedPlayerName() {
+  try { return localStorage.getItem(PLAYER_NAME_STORAGE_KEY) || ''; } catch (e) { return ''; }
+}
+
+function getStoredAutoPlayerName() {
+  try { return localStorage.getItem(AUTO_PLAYER_NAME_STORAGE_KEY) || ''; } catch (e) { return ''; }
+}
+
+function rememberAutoPlayerName(name) {
+  if (!AUTO_PLAYER_NAME_RE.test(name || '')) return;
+  try { localStorage.setItem(AUTO_PLAYER_NAME_STORAGE_KEY, name); } catch (e) { /* iframe sandbox */ }
+}
+
+// --- Viewport ---
+function getViewportMetrics() {
+  if (window.visualViewport) {
+    return {
+      width: Math.round(window.visualViewport.width),
+      height: Math.round(window.visualViewport.height),
+      offsetTop: Math.round(window.visualViewport.offsetTop || 0),
+    };
+  }
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    offsetTop: 0,
+  };
+}
+
+var _syncViewportRaf = null;
+function syncViewportLayout() {
+  if (_syncViewportRaf) return;
+  _syncViewportRaf = requestAnimationFrame(function() {
+    _syncViewportRaf = null;
+    var metrics = getViewportMetrics();
+    document.documentElement.style.setProperty('--app-height', metrics.height + 'px');
+    // iOS Safari doesn't support interactive-widget=resizes-content,
+    // so the CSS media query won't fire. Use visualViewport as fallback.
+    var isLandscape = metrics.width > metrics.height;
+    var keyboardOpen = isLandscape && metrics.height < 220;
+    document.documentElement.classList.toggle('keyboard-compact', keyboardOpen);
+  });
+}
+
+window.addEventListener('resize', syncViewportLayout);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncViewportLayout);
+  window.visualViewport.addEventListener('scroll', syncViewportLayout);
+}
+
+// --- DOM Refs ---
+var nameForm = document.getElementById('name-form');
+var nameInput = document.getElementById('name-input');
+var nameJoinBtn = document.getElementById('name-join-btn');
+var nameStatusText = document.getElementById('name-status-text');
+var nameStatusDetail = document.getElementById('name-status-detail');
+var nameScreen = document.getElementById('name-screen');
+var lobbyScreen = document.getElementById('lobby-screen');
+var lobbyBackBtn = document.getElementById('lobby-back-btn');
+var waitingActionText = document.getElementById('waiting-action-text');
+var gameScreen = document.getElementById('game-screen');
+var gameoverScreen = document.getElementById('gameover-screen');
+var playerIdentity = document.getElementById('player-identity');
+var startBtn = document.getElementById('start-btn');
+var statusText = document.getElementById('status-text');
+var statusDetail = document.getElementById('status-detail');
+var playerNameEl = document.getElementById('player-name');
+var playerIdentityName = document.getElementById('player-identity-name');
+var touchArea = document.getElementById('touch-area');
+var feedbackLayer = document.getElementById('feedback-layer');
+var resultsList = document.getElementById('results-list');
+var gameoverButtons = document.getElementById('gameover-buttons');
+var playAgainBtn = document.getElementById('play-again-btn');
+var newGameBtn = document.getElementById('new-game-btn');
+var gameoverStatus = document.getElementById('gameover-status');
+var pauseBtn = document.getElementById('pause-btn');
+var pauseOverlay = document.getElementById('pause-overlay');
+var pauseContinueBtn = document.getElementById('pause-continue-btn');
+var pauseNewGameBtn = document.getElementById('pause-newgame-btn');
+var pauseButtons = document.getElementById('pause-buttons');
+var reconnectOverlay = document.getElementById('reconnect-overlay');
+var reconnectHeading = document.getElementById('reconnect-heading');
+var reconnectStatus = document.getElementById('reconnect-status');
+var reconnectRejoinBtn = document.getElementById('reconnect-rejoin-btn');
+var latencyDisplay = document.getElementById('latency-display');
+var pauseSettingsBtn = document.getElementById('pause-settings-btn');
+var lobbySettingsBtn = document.getElementById('lobby-settings-btn');
+var settingsOverlay = document.getElementById('settings-overlay');
+var settingsCloseBtn = document.getElementById('settings-close');
+var toggleMuteController = document.getElementById('toggle-mute-controller');
+var rowHaptics = document.getElementById('row-haptics');
+var settingsVersionEl = document.getElementById('settings-version');
+var colorPickerEl = document.getElementById('color-picker');
+var colorPickerOverlay = document.getElementById('color-picker-overlay');
+var identityTrigger = document.getElementById('identity-trigger');
+// Pending color pick (index) — set when the user taps a rose cell, cleared
+// when the display echoes the accepted SET_COLOR back via LOBBY_UPDATE.
+// While non-null, the picker overlay stays open until the next render
+// confirms playerColorIndex matches.
+var pendingColorPick = null;
+
+// --- Screen Management ---
+var SCREEN_ORDER = { name: 0, lobby: 1, game: 1, gameover: 1 };
+
+function showScreen(name) {
+  var prev = currentScreen;
+  currentScreen = name;
+  nameScreen.classList.toggle('hidden', name !== 'name');
+  lobbyScreen.classList.toggle('hidden', name !== 'lobby');
+  gameScreen.classList.toggle('hidden', name !== 'game');
+  gameoverScreen.classList.toggle('hidden', name !== 'gameover');
+  // Re-arm the gameover anti-misclick gate on fresh entry. Re-entering
+  // 'gameover' from itself (reconnect mid-results) preserves the --ready
+  // class added by visibilitychange.
+  if (name === 'gameover' && prev !== 'gameover') {
+    gameoverScreen.classList.remove('gameover-screen--ready');
+  }
+
+  if ((SCREEN_ORDER[name] || 0) > (SCREEN_ORDER[prev] || 0)) {
+    history.pushState({ screen: name }, '');
+  }
+
+  syncViewportLayout();
+}
+
+// --- Helpers ---
+function vibrate(pattern) {
+  if (!navigator.vibrate) return;
+  if (typeof ControllerSettings !== 'undefined' && ControllerSettings.scaleVibration) {
+    var scaled = ControllerSettings.scaleVibration(pattern);
+    if (scaled === null) return;
+    navigator.vibrate(scaled);
+    return;
+  }
+  navigator.vibrate(pattern);
+}
+
+function generateClientId() {
+  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  var id = '';
+  for (var i = 0; i < 12; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}

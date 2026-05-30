@@ -1,0 +1,1548 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --app-height: 100dvh;
+}
+
+html, body {
+  width: 100%;
+  height: var(--app-height);
+  min-height: var(--app-height);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  overscroll-behavior: none;
+}
+
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--app-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* No safe-area here — each screen type handles its own insets */
+}
+
+/* Shell screens (name, lobby, gameover) — single source of safe-area */
+.controller-shell {
+  padding:
+    max(env(safe-area-inset-top), 8px)
+    max(env(safe-area-inset-right), 12px)
+    calc(env(safe-area-inset-bottom) + 16px)
+    max(env(safe-area-inset-left), 12px);
+  background: none;
+}
+
+.controller-shell__frame {
+  width: min(100%, 380px);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.controller-shell__brand {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.controller-shell__title {
+  font-size: clamp(1.6rem, 9vmin, 2.8rem);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  animation: fadeDown 0.5s ease-out both;
+  text-align: center;
+}
+
+.controller-shell__body {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.controller-shell__copy {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.controller-shell__actions {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* When the actions block contains a status banner (e.g. the late-joiner
+   "Game in progress — please wait for New Game" message), widen the
+   container so the text fits on two lines with breathing room on the
+   longest locale (French is ~56 chars). */
+.controller-shell__actions:has(.status-banner:not(.hidden)) {
+  max-width: min(92%, 420px);
+  align-items: stretch;
+  margin-top: 24px;
+}
+
+.join-url-hint {
+  position: absolute;
+  bottom: max(env(safe-area-inset-bottom), 8px);
+  left: 12px;
+  right: 12px;
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
+  color: var(--text-secondary);
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+#lobby-screen.controller-shell {
+  padding-top: 0;
+}
+
+#lobby-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  padding-top: max(env(safe-area-inset-top), 12px);
+  z-index: 1;
+  /* Empty middle strip is full-width and z-index:1 so it would otherwise
+     swallow clicks aimed at content beneath — most visibly the top of
+     the color picker hexes in landscape, where the bar overlaps the
+     picker's first row by ~10px. Children (back + settings buttons)
+     re-enable pointer-events on themselves. */
+  pointer-events: none;
+}
+
+#lobby-top-bar > * {
+  pointer-events: auto;
+}
+
+#lobby-settings-btn {
+  margin-left: auto;
+}
+
+.controller-shell__frame--lobby {
+  flex: 1;
+  height: auto;
+  justify-content: center;
+}
+
+.icon-btn {
+  width: 56px;
+  height: 56px;
+}
+
+
+.hidden {
+  display: none !important;
+}
+
+#name-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 320px;
+  animation: fadeUp 0.5s 0.15s ease-out both;
+}
+
+#name-input {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.1rem, 5vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  -webkit-appearance: none;
+}
+
+#name-input::placeholder {
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+#name-input:focus {
+  border-color: var(--player-color, var(--accent-secondary));
+}
+
+/* Unified sizing for every primary action button on the controller —
+   one shell geometry so lobby/pause/reconnect/results all match.
+   Per-button rules below handle colors, animations, and disabled state. */
+#name-join-btn,
+#start-btn,
+#pause-continue-btn,
+#pause-settings-btn,
+#pause-newgame-btn,
+#reconnect-rejoin-btn,
+#play-again-btn,
+#new-game-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 16px 18px;
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+/* Player-tinted CTA rule lives in theme.css so the display lobby can
+   reuse it. --player-color is set on <body> by the controller
+   (see ControllerGame.js). */
+
+#name-join-btn:disabled,
+#start-btn:disabled {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+#name-join-btn,
+#start-btn {
+  animation: fadeUp 0.5s 0.4s ease-out backwards;
+}
+
+
+#player-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 320px;
+  animation: fadeUp 0.5s 0.3s ease-out both;
+}
+
+/* Identity trigger button — adds button-specific styling on top of the
+   shared .player-card__top layout (in theme.css). The trigger fills the
+   entire top half of the card so the whole region is tappable. Inner
+   border-radius matches the card's outer (--radius-md = 12px) minus the
+   2px card border so the :active highlight tucks under the border. */
+.identity-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.identity-trigger:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* --- Color picker overlay — opens when the identity-trigger is tapped.
+   Reuses .game-overlay (theme.css) for the dark backdrop + safe-area
+   padding. We override the base class's fadeIn keyframe + display:none
+   .hidden behaviour with an opacity transition so the overlay can fade
+   in *and* out (rather than appearing instantly via display swap). The
+   7 alternative colors lay out as a hex flower (1 + 6) in spectrum
+   order, left-to-right, top-to-bottom. The player's CURRENT color is
+   the implicit "missing" slot in the gradient. --- */
+#color-picker-overlay {
+  z-index: 20;
+  gap: 14px;
+  /* Drive open/close fade off the .hidden toggle. animation:none
+     overrides .game-overlay's fadeIn keyframe so the transition below
+     is the only opacity controller. */
+  animation: none;
+  transition: opacity 220ms ease-out;
+  /* Default non-interactive — the .swatch children also start
+     non-interactive (see below). When the overlay opens, a delayed
+     animation flips both back to "auto" AFTER the fade-in completes,
+     so the same tap that opened the overlay can never reach a swatch
+     underneath (no JS click-suppression needed). */
+  pointer-events: none;
+}
+
+/* Override .game-overlay.hidden { display: none !important } so the
+   overlay stays in the layout tree and can fade out on close. */
+#color-picker-overlay.hidden {
+  display: flex !important;
+  opacity: 0;
+}
+
+/* Open state: schedule pointer-events to flip from "none" → "auto" 350ms
+   after the fade-in starts. The animation does nothing visually — its
+   only purpose is to delay the property switch via forwards fill. The
+   rule fires fresh on every open (the :not(.hidden) selector toggles)
+   and is removed on close, so cells return to non-interactive. */
+#color-picker-overlay:not(.hidden),
+#color-picker-overlay:not(.hidden) .swatch,
+#color-picker-overlay:not(.hidden) .picker-close {
+  animation: pickerEnableInteractive 1ms 350ms forwards;
+}
+
+@keyframes pickerEnableInteractive {
+  to { pointer-events: auto; }
+}
+
+.picker-close {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 12px);
+  right: max(env(safe-area-inset-right), 12px);
+  /* Starts non-interactive (matches the overlay + swatches); the
+     pickerEnableInteractive animation flips it back to "auto" after
+     the fade. Without this, the close button's default auto would
+     make it tappable during the fade window. Width/height inherit
+     from .icon-btn (56px) so the close X visually matches the back
+     and settings buttons in the lobby top bar. */
+  pointer-events: none;
+}
+
+.picker-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1rem, 4.5vw, 1.3rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  margin: 0;
+  text-align: center;
+}
+
+/* Swatch grid — the full palette as a wrapped row of round color buttons. */
+#color-picker.swatch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  max-width: 320px;
+}
+
+.swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: clamp(56px, 18vw, 76px);
+  height: clamp(56px, 18vw, 76px);
+  padding: 0;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: var(--swatch-color, #888);
+  cursor: pointer;
+  /* Starts non-interactive; the overlay's open-animation flips this to
+     "auto" after the fade-in (see pickerEnableInteractive above) so the
+     tap that opened the overlay can't fall through onto a swatch. */
+  pointer-events: none;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.swatch:not(.taken):active {
+  transform: scale(0.93);
+}
+
+/* The player's current color — emphasised ring. */
+.swatch.current {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22);
+}
+
+/* Colors taken by other players — dimmed and crossed out. */
+.swatch.taken {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.swatch.taken::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* --- Color picker animations -------------------------------------------
+   When #color-picker-overlay loses .hidden, the swatch grid pops in with a
+   slight overshoot. The .game-overlay base class already provides the
+   backdrop blur + safe-area padding + a fadeIn entrance for the overlay.
+   ----------------------------------------------------------------------- */
+
+#color-picker-overlay:not(.hidden) #color-picker.swatch-grid {
+  animation: pickerPopIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pickerPopIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+#color-picker-overlay:not(.hidden) .picker-title {
+  animation: pickerTitleFadeUp 280ms 100ms ease-out both;
+}
+
+@keyframes pickerTitleFadeUp {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #color-picker-overlay:not(.hidden) #color-picker.swatch-grid,
+  #color-picker-overlay:not(.hidden) .picker-title {
+    animation: fadeIn 200ms ease-out both;
+  }
+}
+
+.status-banner {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1rem;
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.35;
+}
+
+#waiting-action-text {
+  font-family: 'Orbitron', sans-serif;
+  animation: fadeUp 0.5s 0.35s ease-out both;
+}
+
+#status-text,
+#name-status-text,
+#room-gone-heading {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.2rem, 5.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(var(--accent-secondary-rgb), 0.9);
+  text-align: center;
+}
+
+#status-text,
+#name-status-text {
+  animation: fadeUp 0.5s 0.15s ease-out both;
+}
+
+#status-detail,
+#name-status-detail,
+#room-gone-detail {
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+#status-detail,
+#name-status-detail {
+  animation: fadeUp 0.5s 0.25s ease-out both;
+  max-width: 30ch;
+  line-height: 1.45;
+}
+
+#status-text:empty,
+#status-detail:empty,
+#name-status-text:empty,
+#name-status-detail:empty,
+#room-gone-heading:empty,
+#room-gone-detail:empty,
+#gameover-status:empty {
+  display: none;
+}
+
+/* Game screen */
+#game-screen {
+  justify-content: stretch;
+  padding: 0;
+}
+
+/* Game top bar — name card + utility buttons */
+#game-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  padding-top: max(env(safe-area-inset-top), 12px);
+  flex-shrink: 0;
+  background: var(--bg-board);
+}
+
+.game-name-label {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1rem, 5vw, 1.3rem);
+  letter-spacing: 0.05em;
+  color: var(--player-color, var(--text-primary));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+/* Gesture hint bar — pictograms above touch pad */
+#gesture-hints {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 10px 8px 12px;
+  background: var(--bg-board);
+  display: flex;
+  justify-content: space-evenly;
+}
+
+.hint-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: var(--medal-silver); /* fallback for old browsers (no color-mix) */
+  color: color-mix(in srgb, var(--player-color, #888) 55%, white);
+}
+
+.hint-bar-item__icon {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hint-bar-item__icon svg {
+  transform: scale(1.4);
+}
+
+.hint-bar-item__verb {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.6rem, 3.2vw, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--medal-silver); /* fallback for old browsers (no color-mix) */
+  color: color-mix(in srgb, var(--player-color, #888) 65%, white);
+  text-transform: uppercase;
+}
+
+.hint-bar-item__result {
+  font-size: clamp(0.65rem, 3.5vw, 0.8rem);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: -3px;
+}
+
+#touch-area {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-board);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12px 20px;
+  overflow: hidden;
+}
+
+#touch-pad {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  /* Outline roughly matches the display's board wall stroke — player-accent
+     color at ~70% opacity. Two-declaration fallback: the first line lands in
+     older browsers that drop the color-mix version below. */
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid color-mix(in srgb, var(--player-color, white) 70%, transparent);
+  /* Board parity: vertical bg-secondary → bg-board gradient + 12% player tint,
+     matching BoardRenderer's clipped fill. Dots stay on top as a tactile layer.
+     Two-declaration fallback for browsers without color-mix. */
+  background-color: var(--bg-board);
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.10) 1.2px, transparent 1.8px),
+    linear-gradient(var(--bg-secondary), var(--bg-board));
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--player-color, white) 32%, transparent) 1.2px, transparent 1.8px),
+    linear-gradient(color-mix(in srgb, var(--player-color, transparent) 12%, transparent), color-mix(in srgb, var(--player-color, transparent) 12%, transparent)),
+    linear-gradient(var(--bg-secondary), var(--bg-board));
+  background-size: 22px 22px, auto, auto;
+  /* Center the tile origin so leftover width/height after the 22px grid
+     splits evenly on both sides instead of piling up on the right/bottom. */
+  background-position: center;
+  cursor: crosshair;
+}
+
+#touch-pad:active {
+  cursor: grabbing;
+}
+
+#pad-label {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.55rem, 2.5vw, 0.65rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+#feedback-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+
+/* Ping display — bottom bar */
+#game-bottom-bar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  padding: 1px 12px;
+  padding-bottom: max(env(safe-area-inset-bottom), 12px);
+  flex-shrink: 0;
+  background: var(--bg-board);
+}
+
+/* Gesture feedback — soft dark shadow under the finger. Just a radial
+   gradient; no blur filter, no blend mode (both are expensive per frame
+   on mobile GPUs). Only transform + opacity change, which stay on the
+   GPU compositor. */
+.feedback-glow {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.24) 45%,
+    transparent 75%
+  );
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* KO overlay */
+#ko-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(4rem, 20vw, 6rem);
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Game over screen */
+#gameover-screen {
+  background: var(--bg-primary);
+  animation: fadeIn 0.4s ease-out both;
+}
+
+#results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.result-row {
+  align-self: center;
+  width: 100%;
+  max-width: 320px;
+  gap: 18px;
+  padding: 14px 16px;
+}
+
+/* Rank spans the full two-line height of name + stats, so it reads as
+   an integrated ordinal rather than a small tag above the name. */
+.result-rank {
+  font-size: clamp(1.5rem, 7vw, 2.1rem);
+  line-height: 1;
+}
+
+/* "This is you" highlight */
+.result-row.is-me {
+  outline: 1.5px solid rgba(255, 255, 255, 0.4);
+  outline: 1.5px solid color-mix(in srgb, var(--me-color, #888) 70%, transparent);
+}
+
+.result-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.result-name {
+  font-size: clamp(1rem, 5vw, 1.4rem);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  width: 100%;
+}
+
+.result-stats {
+  display: flex;
+  gap: clamp(0.5rem, 2.5vw, 1rem);
+  flex-wrap: wrap;
+  font-size: clamp(0.85rem, 4vw, 1.2rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  width: 100%;
+}
+
+#gameover-actions {
+  margin-top: 24px;
+}
+
+#gameover-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  pointer-events: none;
+  animation: resultsButtonsEnter 0.4s ease 1.5s both;
+}
+
+/* Skip the 1.5s anti-misclick gate when returning to a tab that was
+   already on the results screen — same reasoning as
+   #pause-overlay.pause-overlay--ready. */
+#gameover-screen.gameover-screen--ready #gameover-buttons {
+  animation: none;
+  pointer-events: auto;
+}
+
+#gameover-status {
+  min-height: 0;
+  padding: 0.3rem 0.8rem;
+  animation: resultRowIn 0.5s 0.6s ease-out both;
+}
+
+
+/* Pause button */
+#pause-btn:active .pause-icon::before,
+#pause-btn:active .pause-icon::after {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+#pause-btn:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+#pause-btn.hidden {
+  display: none;
+}
+
+/* Latency indicator (one-way; RTT/2) */
+.latency-display {
+  font-size: 0.7rem;
+  font-family: 'Orbitron', monospace;
+  opacity: 0.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.latency-display__bolt {
+  display: none;
+  flex-shrink: 0;
+}
+/* Bolt appears when the input/ping path is on the P2P DataChannel. */
+.latency-display--fastlane .latency-display__bolt {
+  display: inline-block;
+}
+.ping-good { color: var(--ping-good); }
+.ping-ok { color: var(--ping-ok); }
+.ping-bad { color: var(--ping-bad); }
+
+
+/* Push the pause icon to the right of the top bar; player name sits left. */
+#pause-btn {
+  margin-left: auto;
+}
+
+/* Settings overlay */
+/* Narrow the overlay's safe-area padding so the panel hugs the viewport
+   edges. Other .game-overlay instances (pause, reconnect) keep the wider
+   padding — this override is scoped to #settings-overlay only. The goal
+   is to bring the preview canvas closer to the real touchpad's width.
+   Bottom override also drops the shared rule's extra +16px (that belonged
+   to pause/reconnect's single-CTA layout); the settings panel has its own
+   internal padding already. */
+#settings-overlay {
+  padding-left: max(env(safe-area-inset-left), 8px);
+  padding-right: max(env(safe-area-inset-right), 8px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 14px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settings-panel::-webkit-scrollbar { display: none; }
+
+/* In portrait the left-column wrapper disappears via display:contents so
+   its children flow as direct children of the panel's flex column. The
+   landscape media query re-promotes it to a real flex container. */
+.settings-body-left {
+  display: contents;
+}
+
+#settings-overlay h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(1.2rem, 5vw, 1.5rem);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-row--switch {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-row__label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+}
+
+.settings-row__value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.settings-row__hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 2px;
+  letter-spacing: 0.03em;
+}
+
+.settings-row[hidden] {
+  display: none;
+}
+
+.settings-row[data-disabled="true"] {
+  opacity: 0.45;
+}
+
+.settings-row[data-disabled="true"] .settings-segmented,
+.settings-row[data-disabled="true"] .settings-switch,
+.settings-row[data-disabled="true"] input[type="range"] {
+  pointer-events: none;
+}
+
+/* Toggle switch */
+.settings-switch {
+  width: 52px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+
+.settings-switch[aria-checked="true"] {
+  background: var(--player-color, var(--accent-secondary));
+}
+
+.settings-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--transition-fast);
+}
+
+.settings-switch[aria-checked="true"] .settings-switch__thumb {
+  transform: translateX(22px);
+}
+
+/* Segmented control (haptic strength) */
+.settings-segmented {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.settings-segmented__btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 10px 4px;
+  border-radius: calc(var(--radius-md) - 3px);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-segmented__btn[aria-checked="true"] {
+  background: var(--player-color, var(--accent-secondary));
+  color: var(--btn-primary-text);
+}
+
+/* About footer — sits below the DONE button as a quiet credit line. */
+.settings-about {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  font-family: 'Orbitron', sans-serif;
+  margin-top: -4px;
+  opacity: 0.7;
+}
+
+#settings-close {
+  width: 100%;
+  padding: 16px 18px;
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+}
+
+
+/* Game overlay overrides (controller-specific) */
+
+#pause-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  pointer-events: none;
+  animation: resultsButtonsEnter 0.4s ease 1.5s both;
+}
+
+/* Skip the 1.5s anti-misclick gate when:
+   - the player tapped pause themselves (no misclick risk)
+   - returning to a tab that was already paused (the gate is only useful
+     the moment a fresh pause appears; backgrounding pauses the animation
+     timeline so a stale gate would otherwise block clicks on return). */
+#pause-overlay.pause-overlay--self #pause-buttons,
+#pause-overlay.pause-overlay--ready #pause-buttons {
+  animation: none;
+  pointer-events: auto;
+}
+
+/* Countdown state — neutral touch area, no player color */
+#game-screen.countdown #touch-area {
+  pointer-events: none;
+}
+
+#game-screen.countdown #touch-pad {
+  /* Drop the player-tint layer during countdown; keep dots + gradient. */
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.10) 1.2px, transparent 1.8px),
+    linear-gradient(var(--bg-secondary), var(--bg-board));
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--player-color, white) 32%, transparent) 1.2px, transparent 1.8px),
+    linear-gradient(var(--bg-secondary), var(--bg-board));
+  background-size: 22px 22px, auto;
+}
+
+/* Paused state — disable touch input.
+   Opacity/filter on #touch-pad only so landscape ::after name stays visible. */
+#game-screen.paused #touch-area {
+  pointer-events: none;
+}
+
+#game-screen.paused #touch-pad {
+  opacity: 0.3;
+  filter: grayscale(0.5);
+}
+
+/* Dead state — opacity on #touch-pad only so #ko-overlay stays visible */
+#game-screen.dead #touch-area {
+  pointer-events: none;
+}
+
+#game-screen.dead #touch-pad {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+}
+
+/* --- Results scrolling — scroll on the list, not the body,
+   so the .is-me outline isn't clipped. Hide the scrollbar chrome since
+   desktop and mobile render it differently; swiping still works. --- */
+#results-list {
+  overflow-y: auto;
+  padding: 4px;
+  scrollbar-width: none; /* Firefox */
+}
+#results-list::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+/* Results portrait: with 8 players the stacked brand + list + actions can
+   exceed the frame height. `safe center` keeps the content centered when
+   it fits but anchors to the top when it overflows, so the title stays
+   visible below the safe-area inset instead of being clipped above it.
+   The extra brand padding gives the title a little breathing room from
+   the top edge in both cases. */
+.controller-shell__frame--results {
+  justify-content: center; /* fallback for iOS < 16 */
+  justify-content: safe center;
+}
+
+.controller-shell__frame--results .controller-shell__brand {
+  padding-top: 16px;
+}
+
+/* Keep "MAZE PARTY" on one line on narrow phones rather than wrapping. */
+.controller-shell__frame--results .controller-shell__title {
+  white-space: nowrap;
+}
+
+/* --- Landscape layout ---
+   min-aspect-ratio guards against false-landscape when a portrait device
+   opens the soft keyboard: interactive-widget=resizes-content shrinks the
+   layout viewport height so much that width > height on short phones
+   (e.g. iPhone SE 375x367 with keyboard open). 5/4 still matches real
+   landscape on phones (>1.7) and iPad (1.33). */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) {
+  /* Shell screens: widen frame and reduce vertical spacing */
+  .controller-shell__frame {
+    width: min(100%, 520px);
+  }
+
+  /* Unified title size across all landscape shell screens (name, lobby,
+     results). The 5+ players results case overrides this with a smaller
+     value to fit its narrower right column. */
+  .controller-shell__title {
+    font-size: clamp(1rem, 3.4vw, 1.35rem);
+  }
+
+  .controller-shell__body {
+    gap: 10px;
+  }
+
+  /* Actions keeps tighter cap but centers its button (width:100% capped at
+     320px) inside; name form matches the button width so input and JOIN
+     button line up. */
+  .controller-shell__actions,
+  #name-form {
+    margin-top: 8px;
+    gap: 8px;
+  }
+
+  .controller-shell__actions {
+    max-width: 360px;
+    align-items: center;
+  }
+
+  #name-form {
+    max-width: 320px;
+  }
+
+  /* Status banners need breathing room for longer messages like
+     "Game in progress. Please wait for New Game." */
+  .controller-shell__actions:has(.status-banner:not(.hidden)) {
+    max-width: min(92%, 560px);
+  }
+
+  .status-banner {
+    min-height: 36px;
+    padding: 0.4rem 1rem;
+    font-size: clamp(0.85rem, 3vw, 1rem);
+  }
+
+  /* Lobby: pack player card + start button together near center,
+     matching portrait layout rather than spreading to edges. */
+  .controller-shell__frame--lobby {
+    justify-content: center;
+    gap: 14px;
+  }
+
+  .controller-shell__frame--lobby .controller-shell__body {
+    flex: 0 0 auto;
+  }
+
+  .controller-shell__frame--lobby .controller-shell__actions {
+    margin-top: 0;
+    max-width: none;
+  }
+
+  /* Identity card centres in the body; the color picker is in an overlay
+     (#color-picker-overlay) and is unaffected by the lobby flex layout. */
+
+  /* Results: list on the left half, title + buttons on the right half.
+     Each half gets 1fr so each column fills its side of the frame; the items
+     inside (rows/buttons) are centered within their half by their own
+     max-width + flex alignment. `.controller-shell` already applies safe-area
+     padding. */
+  .controller-shell__frame--results {
+    width: min(100%, 620px);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    align-content: center;
+    column-gap: 16px;
+    row-gap: 12px;
+    padding: 12px;
+  }
+
+  .controller-shell__frame--results .controller-shell__brand {
+    grid-column: 2;
+    grid-row: 1;
+    padding-top: 0;
+    align-self: end;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .controller-shell__body--results {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  #results-list {
+    gap: 8px;
+  }
+
+  .result-row {
+    gap: 10px;
+    padding: 6px 12px;
+  }
+
+  /* Pack name + stats close together so all rows fit on short
+     landscape phones (e.g. iPhone SE 568×320). */
+  .result-info {
+    gap: 0;
+  }
+
+  .result-name {
+    font-size: clamp(0.95rem, 4.2vw, 1.15rem);
+    line-height: 1.15;
+  }
+
+  .result-stats {
+    font-size: clamp(0.78rem, 3.2vw, 0.95rem);
+    gap: 0.6rem;
+    line-height: 1.2;
+  }
+
+  #gameover-actions {
+    grid-column: 2;
+    grid-row: 2;
+    max-width: none;
+    width: 100%;
+    margin-top: 0;
+    justify-content: center;
+    align-self: start;
+  }
+
+  /* 5+ players: widen the list column to hold two sub-columns of ranks, and
+     widen the frame so the three visible columns (ranks A + ranks B + actions)
+     fit packed together in the center (override the half-split from the 2-col
+     case). */
+  .controller-shell__frame--results:has(.result-row:nth-child(5)) {
+    width: min(100%, 920px);
+    grid-template-columns: minmax(0, 640px) minmax(0, 220px);
+    justify-content: center;
+  }
+
+  /* 5+ players: right column narrows to 220px — match the title to that
+     button width so it doesn't brush the column gap or screen edge. */
+  .controller-shell__frame--results:has(.result-row:nth-child(5)) .controller-shell__brand {
+    max-width: 220px;
+  }
+
+  .controller-shell__frame--results:has(.result-row:nth-child(5)) .controller-shell__title {
+    font-size: clamp(0.85rem, 2.6vw, 1.05rem);
+  }
+
+  #results-list:has(.result-row:nth-child(5)) {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(4, auto); /* 4 = MAX_PLAYERS(8) / 2 columns */
+    column-gap: 8px;
+    row-gap: 6px;
+    align-content: start;
+  }
+
+  /* 5+ players on narrow landscape: each sub-column is ~130px, so stats
+     must stay on one line or the row doubles in height. Shrink rank,
+     tighten gaps, and clip rather than wrap. */
+  #results-list:has(.result-row:nth-child(5)) .result-row {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  #results-list:has(.result-row:nth-child(5)) .result-rank {
+    font-size: clamp(0.75rem, 3.2vw, 1rem);
+  }
+
+  #results-list:has(.result-row:nth-child(5)) .result-name {
+    font-size: clamp(0.85rem, 3.6vw, 1rem);
+  }
+
+  #results-list:has(.result-row:nth-child(5)) .result-stats {
+    font-size: clamp(0.7rem, 2.8vw, 0.85rem);
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  #results-list:has(.result-row:nth-child(5)) .result-stats > span {
+    white-space: nowrap;
+  }
+
+  /* Game screen: 3-column grid — left column grows for long translations,
+     right column is fixed to button width. Safe-area on the grid itself.
+     Background fills behind the notch; only content is inset. */
+  #game-screen {
+    --side-col: max(56px, 10vw);
+    display: grid;
+    grid-template-columns: minmax(var(--side-col), auto) 1fr var(--side-col);
+    grid-template-rows: 1fr;
+    column-gap: 8px;
+    align-items: stretch;
+    padding:
+      env(safe-area-inset-top)
+      env(safe-area-inset-right)
+      env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+    background: var(--bg-board);
+  }
+
+  /* Right column: buttons at top, horizontally centred.
+     column-reverse puts pause (last in DOM) on top, mute below. */
+  #game-top-bar {
+    grid-column: 3;
+    grid-row: 1;
+    flex-direction: column-reverse;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 6px 8px 6px 0;
+    gap: 14px;
+  }
+
+  /* Hide player name from the right column */
+  #game-top-bar .game-name-label {
+    display: none;
+  }
+
+  /* Landscape Settings popup — single column with touch-sounds / haptics
+     stacked. Title centered at the top, DONE centered at the bottom,
+     version pinned next to DONE at the bottom-right of the panel. */
+  .settings-panel {
+    position: relative;
+    max-width: 480px;
+    row-gap: 16px;
+    padding: 16px 14px;
+  }
+  .settings-body-left {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #settings-close {
+    justify-self: center;
+    width: auto;
+    min-width: 220px;
+    max-width: 320px;
+  }
+  /* Version pulled out of the grid and anchored to the panel's bottom-right
+     corner so the centered DONE button has symmetric blank space on both
+     sides. Brand prefix is dropped (just the version number) to keep the
+     footer compact. */
+  .settings-about {
+    position: absolute;
+    bottom: 28px;
+    right: 16px;
+    margin: 0;
+  }
+  .settings-about__brand {
+    display: none;
+  }
+
+  /* Player name: shown center-top inside touch area via data attribute.
+     Can't use position:fixed on the original because filter on dead/paused
+     states creates a containing block for fixed children. */
+  #touch-area::after {
+    content: attr(data-player-name);
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1rem, 5vw, 1.3rem);
+    letter-spacing: 0.05em;
+    color: var(--player-color, var(--text-primary));
+    white-space: nowrap;
+    max-width: calc(100% - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Ping: placed in right column, pushed to bottom */
+  #game-bottom-bar {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: end;
+    justify-self: center;
+    padding: 0 8px 4px;
+    background: none;
+    white-space: nowrap;
+  }
+
+  /* Left column: gesture hints, vertically centred.
+     min-width matches the button column (icon-btn = 56px + padding). */
+  #gesture-hints {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    width: auto;
+    padding: 4px 0 4px 8px;
+    flex-shrink: 0;
+  }
+
+  .hint-bar-item__icon {
+    height: 28px;
+  }
+
+  .hint-bar-item__icon svg {
+    transform: scale(1.2);
+  }
+
+  /* Centre column: touchpad, full height */
+  #touch-area {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    padding: 6px 0;
+  }
+}
+
+/* ============================================================
+   Landscape height cascade (all gated by min-aspect-ratio: 5/4
+   to avoid matching portrait phones with the soft keyboard open):
+     base landscape (see ~line 810)   — all heights, full chrome
+     max-height: 499px                — short landscape, drop title + URL
+     min-height: 301px (inside ≤499)  — restore title for Name/Lobby
+     max-height: 220px                — extreme short (soft keyboard), hide brand
+   Each rule only layers on top of the previous one — the base rule
+   provides the full treatment, later rules shave away as height shrinks.
+   ============================================================ */
+
+/* Short landscape (phones) — drop the title + lobby URL so the name
+   input, player card, and primary button fit above the fold. Taller
+   landscape (tablets, desktop windows) keeps the full chrome. */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) and (max-height: 499px) {
+  .controller-shell__title {
+    display: none;
+  }
+
+  /* Results screen keeps the title — it sits in the right column above the
+     buttons (grid layout in the main landscape rule), so there's room. */
+  .controller-shell__frame--results .controller-shell__title {
+    display: block;
+  }
+
+  .controller-shell__body {
+    margin-top: 0;
+  }
+
+  #lobby-join-url {
+    display: none;
+  }
+}
+
+/* Short landscape — settings panel drops its SETTINGS heading to claw back
+   vertical room. */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) and (max-height: 342px) {
+  #settings-overlay h1 {
+    display: none;
+  }
+}
+
+/* Short landscape with enough vertical room (> 300px) — name screen has
+   room to bring the title back. The lobby is handled separately below
+   because its color picker needs more vertical room. */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) and (max-height: 499px) and (min-height: 301px) {
+  .controller-shell__frame--name .controller-shell__title {
+    display: block;
+    animation: none;
+  }
+
+  /* Restore portrait-style gap between title and input. */
+  .controller-shell__frame--name .controller-shell__body {
+    margin-top: 24px;
+  }
+}
+
+/* Lobby title can return on short landscape now that the picker lives in
+   an overlay — the only remaining vertical occupants are the identity
+   card and the START button. Threshold relaxed from 400px to 301px to
+   match the name-screen branch above. */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) and (max-height: 499px) and (min-height: 301px) {
+  .controller-shell__frame--lobby .controller-shell__title {
+    display: block;
+    animation: none;
+  }
+
+  .controller-shell__frame--lobby .controller-shell__body {
+    margin-top: 16px;
+  }
+}
+
+/* Landscape keyboard open — collapse everything except the input field.
+   Android: CSS media query fires via interactive-widget=resizes-content.
+   iOS: JS fallback adds .keyboard-compact via visualViewport detection.
+   Uses visibility+height instead of display:none to avoid replaying
+   CSS entrance animations when the keyboard closes.
+   iPhone 14 landscape = 390px, SE = 259px; keyboard leaves ~140-190px. */
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) and (max-height: 220px) {
+  .controller-shell__brand,
+  .controller-shell__actions,
+  #room-gone-message,
+  .controller-shell__copy {
+    visibility: hidden;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+  }
+
+  .controller-shell {
+    padding: 4px 12px;
+    justify-content: center;
+  }
+
+  .controller-shell__body {
+    margin-top: 0;
+    gap: 0;
+  }
+}
+
+/* iOS Safari fallback — JS sets .keyboard-compact via visualViewport */
+.keyboard-compact .controller-shell__brand,
+.keyboard-compact .controller-shell__actions,
+.keyboard-compact #room-gone-message,
+.keyboard-compact .controller-shell__copy {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+}
+
+.keyboard-compact .controller-shell {
+  padding: 4px 12px;
+  justify-content: center;
+}
+
+.keyboard-compact .controller-shell__body {
+  margin-top: 0;
+  gap: 0;
+}
