@@ -57,16 +57,9 @@ var LOCALES = {
     enter_name: 'Enter name...',
     copied: 'Copied',
     touchpad: 'Touchpad',
-    back: 'Back',
-
-    // Privacy page
-
-    // Imprint page
 
     // Credits
     stacked_by: 'Stacked by Tim',
-
-    // Hex
 
     // Gesture hints
     swipe: 'Swipe',
@@ -122,7 +115,6 @@ var LOCALES = {
     color_choose: 'Farbe {n} wählen',
     color_choose_heading: 'Farbe wählen', color_close: 'Schließen',
     enter_name: 'Name...', copied: 'Kopiert', touchpad: 'Touchpad',
-    back: 'Zurück',
     stacked_by: 'Entwickelt von Tim',
     swipe: 'Wischen', tap: 'Tippen', flick: 'Schnippen',
     gesture_move: 'Bewegen', gesture_rotate: 'Drehen',
@@ -278,7 +270,7 @@ var LOCALES = {
     did_not_escape: '未逃脱',
     color_choose: '选择颜色 {n}',
     color_choose_heading: '选择你的颜色', color_close: '关闭',
-    enter_name: '输入名字...', copied: '已复制', touchpad: '触控板', back: '返回',
+    enter_name: '输入名字...', copied: '已复制', touchpad: '触控板',
     swipe: '滑动', tap: '点按', flick: '快划',
     gesture_move: '移动', gesture_rotate: '旋转',
     stacked_by: '开发：Tim',
@@ -356,7 +348,7 @@ var LOCALES = {
     did_not_escape: '탈출 실패',
     color_choose: '색 {n} 선택',
     color_choose_heading: '색상을 선택하세요', color_close: '닫기',
-    enter_name: '이름 입력...', copied: '복사됨', touchpad: '터치패드', back: '뒤로',
+    enter_name: '이름 입력...', copied: '복사됨', touchpad: '터치패드',
     swipe: '스와이프', tap: '탭', flick: '플릭',
     gesture_move: '이동', gesture_rotate: '회전',
     stacked_by: '개발: Tim',
