@@ -21,34 +21,6 @@ const PARTY_PALETTE = Object.freeze([
   '#FF8C42'  // 8 Tangerine  ← UI accent (secondary)
 ]);
 
-// --- Piece colors (1=I3, 2=V3, 3=T3, 4=o, 5=d, 6=b, 9=garbage) ---
-// The 6-piece casual bag uses palette slots 0-5; slots 6 (Indigo) and 7
-// (Tangerine) are unused and available for future pieces or accents.
-// The near-clear pulse uses white (extending the "white = clear-related"
-// vocabulary of the clear preview and clear glow).
-const PIECE_COLORS = {
-  0: '#000000',             // empty
-  1: PARTY_PALETTE[0],      // I3 - red
-  2: PARTY_PALETTE[1],      // V3 - teal
-  3: PARTY_PALETTE[2],      // T3 - honey
-  4: PARTY_PALETTE[3],      // o  - violet
-  5: PARTY_PALETTE[4],      // d  - mint
-  6: PARTY_PALETTE[5],      // b  - magenta
-  9: '#808080'              // garbage - neutral gray (intentionally off-palette)
-};
-
-// Ghost piece colors — computed from PIECE_COLORS via ghostColor() (CanvasUtils.js).
-// Silently skipped when CanvasUtils.js isn't loaded: the controller doesn't
-// render ghost pieces so it intentionally omits CanvasUtils. If a display
-// renderer that needs GHOST_COLORS runs without CanvasUtils loaded, it will
-// crash on its own — much more obvious than a startup warning.
-var GHOST_COLORS = {};
-if (typeof ghostColor === 'function') {
-  for (var _i = 1; _i <= 9; _i++) {
-    if (PIECE_COLORS[_i]) GHOST_COLORS[_i] = ghostColor(PIECE_COLORS[_i]);
-  }
-}
-
 // Player accent colors — reordered from PARTY_PALETTE to follow the visible
 // spectrum across player slots: red, tangerine, honey, mint, teal, indigo, violet, magenta.
 const PLAYER_COLORS = Object.freeze([
@@ -174,29 +146,9 @@ function rgbaFromHex(hex, alpha) {
 
 // Export for both Node.js and browser
 if (typeof module !== 'undefined' && module.exports) {
-  // IMPORTANT: _gc must mirror ghostColor() in CanvasUtils.js — keep in sync!
-  var _gc = function(hex) {
-    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!m) return { outline: 'rgba(255,255,255,0.3)', fill: 'rgba(255,255,255,0.15)' };
-    var rv = parseInt(m[1],16), gv = parseInt(m[2],16), bv = parseInt(m[3],16);
-    var r = Math.min(255, Math.max(80, Math.round(rv + (255-rv)*0.3)));
-    var g = Math.min(255, Math.max(80, Math.round(gv + (255-gv)*0.3)));
-    var b = Math.min(255, Math.max(80, Math.round(bv + (255-bv)*0.3)));
-    var lum = (rv*0.299 + gv*0.587 + bv*0.114) / 255;
-    var a = +(0.3 + (1-lum)*0.15).toFixed(2);
-    var fillA = +(a * 0.5).toFixed(2);
-    return {
-      outline: 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')',
-      fill: 'rgba(' + r + ',' + g + ',' + b + ',' + fillA + ')'
-    };
-  };
-  for (var _k = 1; _k <= 9; _k++) {
-    if (PIECE_COLORS[_k] && !GHOST_COLORS[_k]) GHOST_COLORS[_k] = _gc(PIECE_COLORS[_k]);
-  }
   module.exports = {
     THEME,
     PARTY_PALETTE,
-    PIECE_COLORS, GHOST_COLORS,
     PLAYER_COLORS, PLAYER_NAMES,
     rgbaFromHex
   };

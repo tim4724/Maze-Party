@@ -1,24 +1,9 @@
 'use strict';
 
 // ============================================================
-// Shared canvas/color utilities — color parsing + lighten/darken,
-// rounded-rect paths, ghost-color derivation, and font detection.
-// Used by theme.js, DisplayUI.js, and the controller.
+// Shared canvas utilities — rounded-rect paths and font detection.
+// Used by DisplayUI.js and the controller.
 // ============================================================
-
-var _hexToRgbCache = new Map();
-function hexToRgb(hex) {
-  let cached = _hexToRgbCache.get(hex);
-  if (cached !== undefined) return cached;
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  cached = result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
-  _hexToRgbCache.set(hex, cached);
-  return cached;
-}
 
 // Feature-detect native ctx.roundRect (Chrome 99+, Safari 15.4+, Firefox 112+).
 var _hasNativeRoundRect = false;
@@ -51,62 +36,6 @@ var _addRoundRectSubPath = _hasNativeRoundRect
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   _addRoundRectSubPath(ctx, x, y, w, h, r);
-}
-
-var _lightenCache = new Map();
-function lightenColor(hex, percent) {
-  const key = hex + '_' + percent;
-  let cached = _lightenCache.get(key);
-  if (cached !== undefined) return cached;
-  const rgb = hexToRgb(hex);
-  if (!rgb) { _lightenCache.set(key, hex); return hex; }
-  const factor = 1 + percent / 100;
-  const r = Math.min(255, Math.round(rgb.r * factor));
-  const g = Math.min(255, Math.round(rgb.g * factor));
-  const b = Math.min(255, Math.round(rgb.b * factor));
-  cached = `rgb(${r}, ${g}, ${b})`;
-  _lightenCache.set(key, cached);
-  return cached;
-}
-
-var _darkenCache = new Map();
-function darkenColor(hex, percent) {
-  const key = hex + '_' + percent;
-  let cached = _darkenCache.get(key);
-  if (cached !== undefined) return cached;
-  const rgb = hexToRgb(hex);
-  if (!rgb) { _darkenCache.set(key, hex); return hex; }
-  const factor = 1 - percent / 100;
-  const r = Math.round(rgb.r * factor);
-  const g = Math.round(rgb.g * factor);
-  const b = Math.round(rgb.b * factor);
-  cached = `rgb(${r}, ${g}, ${b})`;
-  _darkenCache.set(key, cached);
-  return cached;
-}
-
-// Compute ghost-piece colors from any piece color.
-// Lightens dark channels for visibility on dark backgrounds, with alpha
-// scaled by luminance (darker pieces get higher alpha).
-// Returns { outline: 'rgba(...)', fill: 'rgba(...)' } for direct use in rendering.
-var _ghostColorCache = new Map();
-function ghostColor(hex) {
-  var cached = _ghostColorCache.get(hex);
-  if (cached) return cached;
-  const rgb = hexToRgb(hex);
-  if (!rgb) return { outline: 'rgba(255,255,255,0.3)', fill: 'rgba(255,255,255,0.15)' };
-  var r = Math.min(255, Math.max(80, Math.round(rgb.r + (255 - rgb.r) * 0.3)));
-  var g = Math.min(255, Math.max(80, Math.round(rgb.g + (255 - rgb.g) * 0.3)));
-  var b = Math.min(255, Math.max(80, Math.round(rgb.b + (255 - rgb.b) * 0.3)));
-  var lum = (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114) / 255;
-  var a = +(0.3 + (1 - lum) * 0.15).toFixed(2);
-  var fillA = +(a * 0.5).toFixed(2);
-  var result = {
-    outline: 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')',
-    fill: 'rgba(' + r + ',' + g + ',' + b + ',' + fillA + ')'
-  };
-  _ghostColorCache.set(hex, result);
-  return result;
 }
 
 // Shared font detection — returns the preferred display font family string.

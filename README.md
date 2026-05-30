@@ -65,7 +65,6 @@ public/
   display/   # Display client: game authority, Canvas maze renderer
   controller/# Phone touch controller (swipe-to-steer)
   shared/    # Protocol, colors, theme, i18n, shared UI
-scripts/     # Relay load test (k6)
 tests/       # Unit tests (node:test)
 ```
 
@@ -86,11 +85,13 @@ The display and controllers connect to a [Party-Sockets](https://github.com/tim4
 # Unit tests
 npm test
 
-# Relay load test (k6 — requires k6 installed)
-k6 run scripts/relay-loadtest.k6.js
+# Type-check (no build step — checkJs over the JS sources)
+npm run typecheck
 ```
 
-Unit tests use Node.js's built-in `node:test` runner with `node:assert/strict` — no test framework dependency. They cover maze generation (`tests/maze-gen.test.js`), the maze simulation engine (`tests/maze-engine.test.js`), and the PartyPlug transport framework (`partyplug/tests/`). The relay load test models 5-client rooms (1 display + 4 controllers) against the configured relay URL; see the script header for environment knobs.
+Unit tests use Node.js's built-in `node:test` runner with `node:assert/strict` — no test framework dependency. They cover maze generation (`tests/maze-gen.test.js`), the maze simulation engine (`tests/maze-engine.test.js`), and the PartyPlug transport framework (`partyplug/tests/`).
+
+Type-checking uses TypeScript's `checkJs` over the plain JS sources (no transpile/emit — the code ships as-is). `tsconfig.json` scopes it to the isomorphic engine, the server, and the wire protocol; shared/global seams are declared in `types/`.
 
 ## Tech Stack
 

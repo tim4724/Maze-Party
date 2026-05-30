@@ -180,7 +180,7 @@ const server = http.createServer((req, res) => {
     // The non-prod " (#sha)" suffix used to live in client-side code that
     // hit /api/version; computing it here folds both responsibilities into
     // one place. Guard avoids the string round-trip for HTML files
-    // (privacy, imprint) that don't carry the placeholder.
+    // that don't carry the placeholder.
     if (ext === '.html') {
       let text = data.toString('utf8');
       let mutated = false;
