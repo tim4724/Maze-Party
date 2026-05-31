@@ -17,8 +17,6 @@
   // See maze-prototype-plan.md for the starting values + test plan.
   const CELL_W = 10;
   const CELL_H = 10;
-  const GRID_W = CELL_W * 2 + 1;
-  const GRID_H = CELL_H * 2 + 1;
   const BRAID = 0.3;                    // fraction of dead-ends opened into loops
   const MOVE_SPEED_TPS = 6;             // auto-run speed, tiles per second
   const REVEAL_RADIUS = 2;              // fog: tiles revealed around a player (corridor line-of-sight)
@@ -36,8 +34,6 @@
   exports.SELF_HEARTBEAT_DEAD_MS = SELF_HEARTBEAT_DEAD_MS;
   exports.CELL_W = CELL_W;
   exports.CELL_H = CELL_H;
-  exports.GRID_W = GRID_W;
-  exports.GRID_H = GRID_H;
   exports.BRAID = BRAID;
   exports.MOVE_SPEED_TPS = MOVE_SPEED_TPS;
   exports.REVEAL_RADIUS = REVEAL_RADIUS;
